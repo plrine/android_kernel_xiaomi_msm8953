@@ -84,8 +84,17 @@ static void timer_trig_activate(struct led_classdev *led_cdev)
 	if (rc)
 		goto err_out_delayon;
 
-	led_blink_set(led_cdev, &led_cdev->blink_delay_on,
-		      &led_cdev->blink_delay_off);
+	/*
+	 * Only start blinking if delays were already configured (e.g. restored
+	 * after a trigger switch). If both are zero, skip led_blink_set() to
+	 * avoid firing led_timer_function with zero delays immediately, which
+	 * calls led_set_brightness_nosleep(LED_OFF) -> schedule_work() and can
+	 * race with hardware that is not yet ready, causing a kernel crash.
+	 * The blink will be started naturally when userspace writes delay_on/off.
+	 */
+	if (led_cdev->blink_delay_on || led_cdev->blink_delay_off)
+		led_blink_set(led_cdev, &led_cdev->blink_delay_on,
+			      &led_cdev->blink_delay_off);
 	led_cdev->activated = true;
 
 	return;
